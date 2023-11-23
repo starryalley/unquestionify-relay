@@ -97,13 +97,15 @@ func serveNotification(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 		return
 	}
+	// 16KB max payload
+	r.Body = http.MaxBytesReader(w, r.Body, 16000)
 
 	if r.Method == "PUT" {
 		// uploading/updating a notification bitmap (from Android companion app)
 		bitmap, err := io.ReadAll(r.Body)
 		if err != nil {
 			log.Printf("[%s][%s] %s: error: %v\n", session, r.Method, r.URL.Path, err)
-			http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
+			http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
 			return
 		}
 		if _, ok := nm[notificationId]; !ok {

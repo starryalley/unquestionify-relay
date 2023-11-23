@@ -185,13 +185,23 @@ func TestNotifications(t *testing.T) {
 	res.Body.Close()
 
 	// upload some random binaries to page -1
-	bitmap2 := generateRandomBytes(400)
+	bitmap2 := generateRandomBytes(15000)
 	req = httptest.NewRequest(http.MethodPut, "/notifications/"+id+"/-1?session="+sessionId, bytes.NewBuffer(bitmap2))
 	w = httptest.NewRecorder()
 	serveNotification(w, req)
 	res = w.Result()
 	if res.StatusCode != http.StatusOK {
 		t.Errorf("Failed to upload bitmap 2. HTTP status:%d", res.StatusCode)
+	}
+	res.Body.Close()
+
+	bitmapLarge := generateRandomBytes(18000)
+	req = httptest.NewRequest(http.MethodPut, "/notifications/"+id+"/0?session="+sessionId, bytes.NewBuffer(bitmapLarge))
+	w = httptest.NewRecorder()
+	serveNotification(w, req)
+	res = w.Result()
+	if res.StatusCode != http.StatusForbidden {
+		t.Errorf("Upload >16KB content should fail. HTTP status:%d", res.StatusCode)
 	}
 	res.Body.Close()
 
