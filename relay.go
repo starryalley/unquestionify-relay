@@ -183,6 +183,8 @@ func main() {
 			log.Fatalf("Environment variable PORT isn't valid:%s", port)
 		}
 		*httpPort = p
+		// disable timestamp in log
+		log.SetFlags(0)
 	}
 
 	mux := http.NewServeMux()
