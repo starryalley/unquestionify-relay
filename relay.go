@@ -13,12 +13,22 @@ import (
 	"time"
 )
 
-// Unquestionify app ID
+// Garmin connect IQ store Unquestionify app ID
 const appId = "c2842d1b-ad5c-47c6-b28f-cc495abd7d32"
 
 type notification map[int][]byte                // page -> bitmap byte array
 type notificationMap map[string]notification    // notification ID -> notification
 var database = make(map[string]notificationMap) // session ID -> notificationMap
+
+var startTime time.Time
+
+func init() {
+	startTime = time.Now()
+}
+
+func uptime() time.Duration {
+	return time.Since(startTime)
+}
 
 func checkAppId(w http.ResponseWriter, r *http.Request) bool {
 	if r.Header.Get("app-id") != appId {
@@ -89,7 +99,7 @@ func serveNotification(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if r.Method == "PUT" {
-		// uploading a notification bitmap (from Android companion app)
+		// uploading/updating a notification bitmap (from Android companion app)
 		bitmap, err := io.ReadAll(r.Body)
 		if err != nil {
 			log.Printf("[%s][%s] %s: error: %v\n", session, r.Method, r.URL.Path, err)
@@ -117,7 +127,6 @@ func serveNotification(w http.ResponseWriter, r *http.Request) {
 		}
 		// return the bitmap byte array
 		w.Header().Set("Content-Type", "image/png")
-		w.Header().Set("Server", "Apache/2.4.1 (Unix)")
 		w.Header().Set("Content-Length", fmt.Sprint(len(n[page])))
 		count, err := w.Write(n[page])
 		if err != nil {
@@ -126,20 +135,19 @@ func serveNotification(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		log.Printf("[%s][%s] %s: sent %d bytes\n", session, r.Method, r.URL.Path, count)
+	} else if r.Method == "DELETE" {
+		// remove all bitmaps from a notification, page in the URL is required but not used
+		if _, ok := nm[notificationId]; !ok {
+			log.Printf("[%s][%s] %s: notification doesn't exist\n", session, r.Method, r.URL.Path)
+			http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
+			return
+		}
+		delete(database[session], notificationId)
+		log.Printf("[%s][%s] %s: done\n", session, r.Method, r.URL.Path)
 	} else {
 		log.Printf("[%s][%s] %s: request not supported\n", session, r.Method, r.URL.Path)
 		http.Error(w, http.StatusText(http.StatusMethodNotAllowed), http.StatusMethodNotAllowed)
 	}
-}
-
-var startTime time.Time
-
-func init() {
-	startTime = time.Now()
-}
-
-func uptime() time.Duration {
-	return time.Since(startTime)
 }
 
 func printStat() {
@@ -181,7 +189,7 @@ func main() {
 
 	// print statistics
 	go func() {
-		ticker := time.NewTicker(5 * time.Minute)
+		ticker := time.NewTicker(15 * time.Minute)
 		for {
 			select {
 			case <-ticker.C:

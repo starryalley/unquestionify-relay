@@ -249,5 +249,34 @@ func TestNotifications(t *testing.T) {
 	}
 	res.Body.Close()
 
+	// delete non-existent notification
+	req = httptest.NewRequest(http.MethodDelete, "/notifications/should_not_exist/0?session="+sessionId, nil)
+	w = httptest.NewRecorder()
+	serveNotification(w, req)
+	res = w.Result()
+	if res.StatusCode != http.StatusNotFound {
+		t.Errorf("deleting non-existent notification should fail. HTTP status:%d", res.StatusCode)
+	}
+	res.Body.Close()
+
+	// delete existing notification
+	req = httptest.NewRequest(http.MethodDelete, "/notifications/"+id+"/0?session="+sessionId, nil)
+	w = httptest.NewRecorder()
+	serveNotification(w, req)
+	res = w.Result()
+	if res.StatusCode != http.StatusOK {
+		t.Errorf("deleting notification failed. HTTP status:%d", res.StatusCode)
+	}
+	res.Body.Close()
+
+	// download the same notificaiton should fail now
+	req = httptest.NewRequest(http.MethodGet, "/notifications/"+id+"/0?session="+sessionId, nil)
+	w = httptest.NewRecorder()
+	serveNotification(w, req)
+	res = w.Result()
+	if res.StatusCode != http.StatusNotFound {
+		t.Errorf("notification deleted and should return not found. HTTP status:%d", res.StatusCode)
+	}
+
 	endSession(t)
 }
