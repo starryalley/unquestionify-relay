@@ -290,3 +290,46 @@ func TestNotifications(t *testing.T) {
 
 	endSession(t)
 }
+
+func TestConcurrentRequests(t *testing.T) {
+	startSession(t)
+
+	id := uuid.New().String()
+
+	makeRequest := func(method string) {
+		req := httptest.NewRequest(method, "/notifications/"+id+"/0?session="+sessionId, nil)
+		w := httptest.NewRecorder()
+		serveNotification(w, req)
+		res := w.Result()
+		res.Body.Close()
+	}
+
+	putRequest := func() {
+		bitmap := generateRandomBytes(10000)
+		req := httptest.NewRequest(http.MethodPut, "/notifications/"+id+"/0?session="+sessionId, bytes.NewBuffer(bitmap))
+		w := httptest.NewRecorder()
+		serveNotification(w, req)
+		res := w.Result()
+		res.Body.Close()
+	}
+
+	getRequest := func() {
+		makeRequest(http.MethodGet)
+	}
+
+	deleteRequest := func() {
+		makeRequest(http.MethodDelete)
+	}
+
+	for i := 0; i < 1000; i++ {
+		go putRequest()
+	}
+	for i := 0; i < 1000; i++ {
+		go getRequest()
+	}
+	for i := 0; i < 1000; i++ {
+		go deleteRequest()
+	}
+
+	endSession(t)
+}

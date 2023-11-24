@@ -10,6 +10,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -19,6 +20,7 @@ const appId = "c2842d1b-ad5c-47c6-b28f-cc495abd7d32"
 type notification map[int][]byte                // page -> bitmap byte array
 type notificationMap map[string]notification    // notification ID -> notification
 var database = make(map[string]notificationMap) // session ID -> notificationMap
+var mutex = &sync.RWMutex{}
 
 var startTime time.Time
 
@@ -45,6 +47,8 @@ func serveSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	session := r.URL.Query().Get("session")
+	mutex.Lock()
+	defer mutex.Unlock()
 	if r.Method == "POST" {
 		if len(session) == 0 {
 			log.Printf("invalid session ID: %s\n", session)
@@ -77,12 +81,16 @@ func serveSession(w http.ResponseWriter, r *http.Request) {
 // URL format: /notifications/[ID]/[page]?session=[session ID]
 func serveNotification(w http.ResponseWriter, r *http.Request) {
 	session := r.URL.Query().Get("session")
+	mutex.RLock()
 	nm, ok := database[session]
 	if !ok {
 		log.Printf("session [%s] doesn't exist\n", session)
 		http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
+		mutex.RUnlock()
 		return
 	}
+	mutex.RUnlock()
+
 	urlParts := strings.Split(r.URL.Path, "/")
 	if len(urlParts) != 4 {
 		log.Printf("[%s][%s] %s: URL invalid", session, r.Method, r.URL.Path)
@@ -108,6 +116,8 @@ func serveNotification(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
 			return
 		}
+		mutex.Lock()
+		defer mutex.Unlock()
 		if _, ok := nm[notificationId]; !ok {
 			nm[notificationId] = make(notification)
 		}
@@ -115,6 +125,8 @@ func serveNotification(w http.ResponseWriter, r *http.Request) {
 		log.Printf("[%s][%s] %s: received %d bytes", session, r.Method, r.URL.Path, len(bitmap))
 	} else if r.Method == "GET" {
 		// downloading a notification bitmap (from the watch app)
+		mutex.RLock()
+		defer mutex.RUnlock()
 		n, ok := nm[notificationId]
 		if !ok {
 			log.Printf("[%s][%s] %s: notification doesn't exist\n", session, r.Method, r.URL.Path)
@@ -138,6 +150,8 @@ func serveNotification(w http.ResponseWriter, r *http.Request) {
 		}
 		log.Printf("[%s][%s] %s: sent %d bytes\n", session, r.Method, r.URL.Path, count)
 	} else if r.Method == "DELETE" {
+		mutex.Lock()
+		defer mutex.Unlock()
 		// remove all bitmaps from a notification, page in the URL is required but not used
 		if _, ok := nm[notificationId]; !ok {
 			log.Printf("[%s][%s] %s: notification doesn't exist\n", session, r.Method, r.URL.Path)
