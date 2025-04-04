@@ -186,8 +186,9 @@ func printStat() {
 func main() {
 	httpPort := flag.Int("http-port", 80, "The port for the http service")
 	httpsPort := flag.Int("https-port", 443, "The port for the https service")
-	certFile := flag.String("cert", "fullchain.pem", "The TLS cert file")
-	keyFile := flag.String("key", "privkey.pem", "The TLS key file")
+
+	certFile := os.Getenv("CERT_PATH")
+	keyFile := os.Getenv("KEY_PATH")
 
 	flag.Parse()
 
@@ -252,7 +253,7 @@ func main() {
 	if standalone {
 		log.Printf("Starting unquestionify relay server at http port %d, https port %d\n", *httpPort, *httpsPort)
 		go httpServer.ListenAndServe()
-		log.Fatal(httpsServer.ListenAndServeTLS(*certFile, *keyFile))
+		log.Fatal(httpsServer.ListenAndServeTLS(certFile, keyFile))
 	} else {
 		log.Printf("Starting unquestionify relay server at http port %d", *httpPort)
 		httpServer.ListenAndServe()
